@@ -17,13 +17,7 @@ mongoose
 	})
 	.catch((err) => console.error("❌ MongoDB connection error:", err));
 
-const quizSchema = new mongoose.Schema({
-	id: String,
-	title: String,
-	color: String,
-	icon: String,
-	questions: Array,
-});
+const quizSchema = new mongoose.Schema({}, { strict: false });
 
 const Quiz = mongoose.model("Quiz", quizSchema);
 
