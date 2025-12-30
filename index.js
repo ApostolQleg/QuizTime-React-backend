@@ -46,8 +46,8 @@ async function initDatabase() {
 
 app.get("/api/storage", async (req, res) => {
 	try {
-		const quizzes = await Quiz.find();
-		res.json(quizzes);
+		const storage = await Quiz.find();
+		res.json(storage);
 	} catch (error) {
 		res.status(500).json({ error: "Failed to fetch quizzes" });
 	}
