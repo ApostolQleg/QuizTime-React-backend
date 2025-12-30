@@ -23,7 +23,7 @@ const Quiz = mongoose.model("Quiz", quizSchema, "storage");
 
 app.use(
 	cors({
-		origin: ["https://quiz-time-with-react.vercel.app/"],
+		origin: ["https://quiz-time-with-react.vercel.app"],
 		methods: ["GET", "POST", "PUT", "DELETE"],
 		allowedHeaders: ["Content-Type"],
 	})
