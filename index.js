@@ -11,66 +11,250 @@ const PORT = process.env.PORT || 3000;
 
 mongoose
 	.connect(process.env.MONGO_URI)
-	.then(() => {
+	.then(async () => {
 		console.log("✅ Connected to MongoDB");
-		initDatabase();
+		await seedDatabase();
 	})
 	.catch((err) => console.error("❌ MongoDB connection error:", err));
 
-const quizSchema = new mongoose.Schema({}, { strict: false });
+// quiz schema
+const quizSchema = new mongoose.Schema(
+	{
+		title: String,
+		description: String,
+		id: String,
+		questions: Array,
+	},
+	{ versionKey: false },
+);
 
-const Quiz = mongoose.model("Quiz", quizSchema, "storage");
+const Quiz = mongoose.model("Quiz", quizSchema, "quizzes");
 
 app.use(
 	cors({
-		origin: ["https://quiz-time-with-react.vercel.app"],
+		origin: ["https://quiz-time-with-react.vercel.app", "http://localhost:5173"],
 		methods: ["GET", "POST", "PUT", "DELETE"],
 		allowedHeaders: ["Content-Type"],
-	})
+	}),
 );
 
 app.use(express.json());
 
-async function initDatabase() {
+// seed database if empty
+async function seedDatabase() {
 	try {
 		const count = await Quiz.countDocuments();
 		if (count === 0) {
-			console.log("📂 Database is empty. Seeding default quizzes...");
-			await Quiz.insertMany(defaultQuizzes);
-			console.log("✅ Default quizzes added!");
+			await Quiz.insertMany(defaultQuizzes.quizzes);
+			console.log("✅ Default quizzes added");
 		}
 	} catch (error) {
-		console.error("Error seeding database:", error);
+		console.error("Seeding error:", error);
 	}
 }
 
-app.get("/api/storage", async (req, res) => {
+// paginated quizzes list
+app.get("/api/quizzes", async (req, res) => {
 	try {
-		const storage = await Quiz.findOne();
-		res.json(storage);
-	} catch (error) {
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 6;
+		const skip = (page - 1) * limit;
+
+		const quizzes = await Quiz.find().select("-questions").skip(skip).limit(limit);
+
+		const total = await Quiz.countDocuments();
+
+		res.json({
+			data: quizzes,
+			currentPage: page,
+			totalPages: Math.ceil(total / limit),
+			totalQuizzes: total,
+		});
+	} catch {
 		res.status(500).json({ error: "Failed to fetch quizzes" });
 	}
 });
 
-app.put("/api/storage", async (req, res) => {
+// create new quiz
+app.post("/api/quizzes", async (req, res) => {
 	try {
-		const newData = req.body;
+		const { id, title, description, questions } = req.body;
 
-		await Quiz.deleteMany({});
-		await Quiz.insertMany(newData);
+		if (!id || !title || !Array.isArray(questions)) {
+			return res.status(400).json({ error: "Invalid payload" });
+		}
 
-		res.json({ ok: true });
+		const exists = await Quiz.findOne({ id });
+		if (exists) {
+			return res.status(409).json({ error: "Quiz with this id already exists" });
+		}
+
+		const quiz = new Quiz({
+			id: String(id),
+			title,
+			description,
+			questions,
+		});
+
+		await quiz.save();
+
+		res.status(201).json({ ok: true, quiz });
 	} catch (error) {
-		console.error(error);
-		res.status(500).json({ error: "Failed to save quizzes" });
+		console.error("Create quiz error:", error);
+		res.status(500).json({ error: "Failed to create quiz" });
 	}
 });
 
-if (process.env.NODE_ENV !== "production") {
-	app.listen(PORT, () => {
-		console.log(`✅ Backend running on http://localhost:${PORT}`);
-	});
-}
+// single quiz by id
+app.get("/api/quizzes/:id", async (req, res) => {
+	try {
+		const quiz = await Quiz.findOne({ id: req.params.id });
+		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+		res.json(quiz);
+	} catch {
+		res.status(500).json({ error: "Failed to fetch quiz" });
+	}
+});
+
+// update quiz by id
+app.put("/api/quizzes/:id", async (req, res) => {
+	try {
+		const updates = {};
+		const { title, description, questions } = req.body;
+
+		if (title !== undefined) updates.title = title;
+		if (description !== undefined) updates.description = description;
+		if (questions !== undefined) {
+			if (!Array.isArray(questions)) {
+				return res.status(400).json({ error: "Questions must be an array" });
+			}
+			updates.questions = questions;
+		}
+
+		const quiz = await Quiz.findOneAndUpdate(
+			{ id: req.params.id },
+			{ $set: updates },
+			{ new: true },
+		);
+
+		if (!quiz) {
+			return res.status(404).json({ error: "Quiz not found" });
+		}
+
+		res.json({ ok: true, quiz });
+	} catch (error) {
+		console.error("Update quiz error:", error);
+		res.status(500).json({ error: "Failed to update quiz" });
+	}
+});
+
+// delete quiz by id
+app.delete("/api/quizzes/:id", async (req, res) => {
+	try {
+		const quiz = await Quiz.findOneAndDelete({ id: req.params.id });
+		if (!quiz) {
+			return res.status(404).json({ error: "Quiz not found" });
+		}
+		res.json({ ok: true });
+	} catch (error) {
+		console.error("Delete quiz error:", error);
+		res.status(500).json({ error: "Failed to delete quiz" });
+	}
+});
+
+// result schema
+const resultSchema = new mongoose.Schema(
+	{
+		quizId: { type: String, required: true, index: true },
+		quizTitle: { type: String, required: true },
+
+		timestamp: { type: Number, required: true },
+
+		summary: {
+			score: Number,
+			correct: Number,
+			total: Number,
+		},
+
+		answers: {
+			type: Array,
+			required: true,
+		},
+
+		questions: {
+			type: Array,
+			required: true,
+		},
+
+		createdAt: { type: Date, default: Date.now, index: true },
+	},
+	{ versionKey: false },
+);
+
+const Result = mongoose.model("Result", resultSchema, "results");
+
+// get recent results
+app.get("/api/results", async (req, res) => {
+	try {
+		const results = await Result.find()
+			.select("-questions -answers")
+			.sort({ createdAt: -1 })
+			.limit(50)
+			.lean();
+
+		res.json(results);
+	} catch (error) {
+		res.status(500).json({ error: "Failed to fetch results" });
+	}
+});
+
+// save result
+app.post("/api/results", async (req, res) => {
+	try {
+		const { quizId, answers, summary, timestamp } = req.body;
+
+		if (!quizId || !answers || !summary || !timestamp) {
+			return res.status(400).json({ error: "Invalid payload" });
+		}
+
+		const quiz = await Quiz.findOne({ id: String(quizId) }).lean();
+		if (!quiz) {
+			return res.status(404).json({ error: "Quiz not found" });
+		}
+
+		const result = new Result({
+			quizId,
+			quizTitle: quiz.title,
+			timestamp,
+			summary,
+			answers,
+			questions: quiz.questions,
+		});
+
+		await result.save();
+
+		res.status(201).json({ ok: true, resultId: result._id });
+	} catch (error) {
+		console.error("Save result error:", error);
+		res.status(500).json({ error: "Failed to save result" });
+	}
+});
+
+// get single result by id
+app.get("/api/results/:id", async (req, res) => {
+	try {
+		const result = await Result.findById(req.params.id).lean();
+		if (!result) {
+			return res.status(404).json({ error: "Result not found" });
+		}
+		res.json(result);
+	} catch (error) {
+		res.status(500).json({ error: "Failed to fetch result" });
+	}
+});
 
 export default app;
+
+if (process.env.NODE_ENV !== "production") {
+	app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
