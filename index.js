@@ -53,24 +53,13 @@ async function seedDatabase() {
 	}
 }
 
-// paginated quizzes list
+// get all quizzes
 app.get("/api/quizzes", async (req, res) => {
 	try {
-		const page = parseInt(req.query.page) || 1;
-		const limit = parseInt(req.query.limit) || 6;
-		const skip = (page - 1) * limit;
-
-		const quizzes = await Quiz.find().select("-questions").skip(skip).limit(limit);
-
-		const total = await Quiz.countDocuments();
-
-		res.json({
-			data: quizzes,
-			currentPage: page,
-			totalPages: Math.ceil(total / limit),
-			totalQuizzes: total,
-		});
-	} catch {
+		const quizzes = await Quiz.find().select("-questions");
+		res.json(quizzes);
+	} catch (error) {
+		console.error("Error fetching quizzes:", error);
 		res.status(500).json({ error: "Failed to fetch quizzes" });
 	}
 });
@@ -111,7 +100,8 @@ app.get("/api/quizzes/:id", async (req, res) => {
 		const quiz = await Quiz.findOne({ id: req.params.id });
 		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
 		res.json(quiz);
-	} catch {
+	} catch (error) {
+		console.error("Fetch quiz error:", error);
 		res.status(500).json({ error: "Failed to fetch quiz" });
 	}
 });
@@ -193,17 +183,16 @@ const resultSchema = new mongoose.Schema(
 
 const Result = mongoose.model("Result", resultSchema, "results");
 
-// get recent results
+// get all results
 app.get("/api/results", async (req, res) => {
 	try {
 		const results = await Result.find()
 			.select("-questions -answers")
 			.sort({ createdAt: -1 })
-			.limit(50)
 			.lean();
-
 		res.json(results);
 	} catch (error) {
+		console.error("Error fetching results:", error);
 		res.status(500).json({ error: "Failed to fetch results" });
 	}
 });
@@ -249,6 +238,7 @@ app.get("/api/results/:id", async (req, res) => {
 		}
 		res.json(result);
 	} catch (error) {
+		console.error("Fetch result error:", error);
 		res.status(500).json({ error: "Failed to fetch result" });
 	}
 });
