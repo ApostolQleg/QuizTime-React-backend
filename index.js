@@ -196,10 +196,7 @@ const Result = mongoose.model("Result", resultSchema, "results");
 // get all results
 app.get("/api/results", async (req, res) => {
 	try {
-		const results = await Result.find()
-			.select("-questions -answers")
-			.sort({ createdAt: -1 })
-			.lean();
+		const results = await Result.find().select("-questions").sort({ createdAt: -1 }).lean();
 		res.json(results);
 	} catch (error) {
 		console.error("Error fetching results:", error);
