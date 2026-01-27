@@ -56,7 +56,17 @@ async function seedDatabase() {
 // get all quizzes
 app.get("/api/quizzes", async (req, res) => {
 	try {
-		const quizzes = await Quiz.find().select("-questions");
+		const quizzes = await Quiz.aggregate([
+			{
+				$project: {
+					_id: 1,
+					id: 1,
+					title: 1,
+					description: 1,
+					questionsCount: { $size: "$questions" },
+				},
+			},
+		]);
 		res.json(quizzes);
 	} catch (error) {
 		console.error("Error fetching quizzes:", error);
