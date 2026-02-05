@@ -9,13 +9,49 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-mongoose
-	.connect(process.env.MONGO_URI)
-	.then(async () => {
-		console.log("✅ Connected to MongoDB");
-		await seedDatabase();
-	})
-	.catch((err) => console.error("❌ MongoDB connection error:", err));
+// --- OPTIMIZATION START: Mongoose Caching Pattern ---
+let cached = global.mongoose;
+
+if (!cached) {
+	cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectToDatabase() {
+	if (cached.conn) {
+		return cached.conn;
+	}
+
+	if (!cached.promise) {
+		const opts = {
+			bufferCommands: false,
+			maxPoolSize: 10,
+		};
+
+		cached.promise = mongoose.connect(process.env.MONGO_URI, opts).then((mongoose) => {
+			console.log("✅ New MongoDB connection established");
+			return mongoose;
+		});
+	}
+
+	try {
+		cached.conn = await cached.promise;
+	} catch (e) {
+		cached.promise = null;
+		throw e;
+	}
+
+	return cached.conn;
+}
+// --- OPTIMIZATION END ---
+app.use(async (req, res, next) => {
+	try {
+		await connectToDatabase();
+		next();
+	} catch (error) {
+		console.error("Database connection failed:", error);
+		res.status(500).json({ error: "Database connection failed" });
+	}
+});
 
 // quiz schema
 const quizSchema = new mongoose.Schema(
@@ -30,6 +66,39 @@ const quizSchema = new mongoose.Schema(
 
 const Quiz = mongoose.model("Quiz", quizSchema, "quizzes");
 
+// result schema
+const resultSchema = new mongoose.Schema(
+	{
+		quizId: { type: String, required: true, index: true },
+		quizTitle: { type: String, required: true },
+		timestamp: { type: Number, required: true },
+		summary: {
+			score: Number,
+			correct: Number,
+			total: Number,
+		},
+		answers: { type: Array, required: true },
+		questions: { type: Array, required: true },
+		createdAt: { type: Date, default: Date.now, index: true },
+	},
+	{ versionKey: false },
+);
+
+const Result = mongoose.model("Result", resultSchema, "results");
+
+// seed database logic (винесено в окрему функцію, яка викликається лише при потребі)
+async function checkAndSeedDatabase() {
+	try {
+		const count = await Quiz.countDocuments();
+		if (count === 0) {
+			await Quiz.insertMany(defaultQuizzes.quizzes);
+			console.log("✅ Default quizzes seeded");
+		}
+	} catch (error) {
+		console.error("Seeding error:", error);
+	}
+}
+
 app.use(
 	cors({
 		origin: ["https://quiz-time-with-react.vercel.app", "http://localhost:5173"],
@@ -40,22 +109,11 @@ app.use(
 
 app.use(express.json());
 
-// seed database if empty
-async function seedDatabase() {
-	try {
-		const count = await Quiz.countDocuments();
-		if (count === 0) {
-			await Quiz.insertMany(defaultQuizzes.quizzes);
-			console.log("✅ Default quizzes added");
-		}
-	} catch (error) {
-		console.error("Seeding error:", error);
-	}
-}
-
 // get all quizzes
 app.get("/api/quizzes", async (req, res) => {
 	try {
+		await checkAndSeedDatabase();
+
 		const quizzes = await Quiz.aggregate([
 			{
 				$project: {
@@ -96,7 +154,6 @@ app.post("/api/quizzes", async (req, res) => {
 		});
 
 		await quiz.save();
-
 		res.status(201).json({ ok: true, quiz });
 	} catch (error) {
 		console.error("Create quiz error:", error);
@@ -162,37 +219,6 @@ app.delete("/api/quizzes/:id", async (req, res) => {
 	}
 });
 
-// result schema
-const resultSchema = new mongoose.Schema(
-	{
-		quizId: { type: String, required: true, index: true },
-		quizTitle: { type: String, required: true },
-
-		timestamp: { type: Number, required: true },
-
-		summary: {
-			score: Number,
-			correct: Number,
-			total: Number,
-		},
-
-		answers: {
-			type: Array,
-			required: true,
-		},
-
-		questions: {
-			type: Array,
-			required: true,
-		},
-
-		createdAt: { type: Date, default: Date.now, index: true },
-	},
-	{ versionKey: false },
-);
-
-const Result = mongoose.model("Result", resultSchema, "results");
-
 // get all results
 app.get("/api/results", async (req, res) => {
 	try {
@@ -228,7 +254,6 @@ app.post("/api/results", async (req, res) => {
 		});
 
 		await result.save();
-
 		res.status(201).json({ ok: true, resultId: result._id });
 	} catch (error) {
 		console.error("Save result error:", error);
