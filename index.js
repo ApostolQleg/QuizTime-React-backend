@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";
 import { defaultQuizzes } from "./default-quizzes.js";
 
 dotenv.config();
@@ -132,6 +133,27 @@ const resultSchema = new mongoose.Schema(
 
 const Result = mongoose.model("Result", resultSchema, "results");
 
+// temp code schema for password reset
+const tempCodeSchema = new mongoose.Schema(
+	{
+		email: { type: String, required: true, unique: true },
+		code: { type: String, required: true },
+		createdAt: { type: Date, default: Date.now, expires: 300 },
+	},
+	{ versionKey: false },
+);
+
+const TempCode = mongoose.model("TempCode", tempCodeSchema, "temp_codes");
+
+// Nodemailer transporter setup
+const transporter = nodemailer.createTransport({
+	service: "gmail",
+	auth: {
+		user: process.env.SMTP_USER,
+		pass: process.env.SMTP_PASS,
+	},
+});
+
 // seed database logic
 async function checkAndSeedDatabase() {
 	try {
@@ -163,18 +185,35 @@ app.use(express.json());
 
 app.post("/auth/register", async (req, res) => {
 	try {
-		const { name, email, password, avatarUrl } = req.body;
-		if (!name || !email || !password) {
-			return res.status(400).json({ error: "Name, email and password are required" });
+		const { name, email, password, avatarUrl, code } = req.body;
+
+		if (!name || !email || !password || !code) {
+			return res.status(400).json({ error: "Name, email, password and code are required" });
 		}
+
 		const existingUser = await User.findOne({ email });
 		if (existingUser) {
 			return res.status(409).json({ error: "User with this email already exists" });
 		}
+
+		const record = await TempCode.findOne({ email });
+		if (!record) {
+			return res
+				.status(400)
+				.json({ error: "Verification code expired or not found. Please try again." });
+		}
+
+		if (record.code !== code.trim()) {
+			return res.status(400).json({ error: "Invalid verification code" });
+		}
+
 		const salt = await bcrypt.genSalt(10);
 		const passwordHash = await bcrypt.hash(password, salt);
 		const user = new User({ name, email, passwordHash, avatarUrl });
 		await user.save();
+
+		await TempCode.deleteOne({ email });
+
 		const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 		const { passwordHash: _, ...userData } = user.toObject();
 		res.status(201).json({ ok: true, user: userData, token });
@@ -225,6 +264,45 @@ app.post("/auth/google", async (req, res) => {
 	} catch (error) {
 		console.error("Google Auth Error:", error);
 		res.status(500).json({ error: "Google login failed" });
+	}
+});
+
+app.post("/auth/send-code", async (req, res) => {
+	try {
+		const { email } = req.body;
+		if (!email) return res.status(400).json({ error: "Email is required" });
+
+		const existingUser = await User.findOne({ email });
+		if (existingUser) {
+			return res.status(409).json({ error: "User with this email already exists" });
+		}
+
+		const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+		await TempCode.findOneAndUpdate(
+			{ email },
+			{ code, createdAt: new Date() },
+			{ upsert: true, new: true, setDefaultsOnInsert: true },
+		);
+
+		await transporter.sendMail({
+			from: `"QuizTime" <${process.env.SMTP_USER}>`,
+			to: email,
+			subject: "Your Verification Code",
+			html: `
+                <div style="font-family: Arial, sans-serif; color: #333;">
+                    <h2>Welcome to QuizTime!</h2>
+                    <p>Your verification code is:</p>
+                    <h1 style="color: #4CAF50; letter-spacing: 5px;">${code}</h1>
+                    <p>This code expires in 5 minutes.</p>
+                </div>
+            `,
+		});
+
+		res.json({ ok: true, message: "Code sent" });
+	} catch (error) {
+		console.error("Send code error:", error);
+		res.status(500).json({ error: "Failed to send verification code" });
 	}
 });
 
