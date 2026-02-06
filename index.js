@@ -311,7 +311,19 @@ app.post("/auth/send-code", async (req, res) => {
 app.get("/api/quizzes", async (req, res) => {
 	try {
 		await checkAndSeedDatabase();
+
+		const limit = parseInt(req.query.limit) || 36;
+		let skip = parseInt(req.query.skip);
+
+		if (isNaN(skip)) {
+			const page = parseInt(req.query.page) || 1;
+			skip = (page - 1) * limit;
+		}
+
 		const quizzes = await Quiz.aggregate([
+			{ $sort: { _id: -1 } },
+			{ $skip: skip },
+			{ $limit: limit },
 			{
 				$lookup: {
 					from: "users",
