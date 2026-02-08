@@ -85,9 +85,9 @@ const checkAuth = (req, res, next) => {
 // user schema
 const userSchema = new mongoose.Schema(
 	{
-		name: { type: String, required: true },
+		name: { type: String, required: true, unique: true },
 		email: { type: String, required: true, unique: true },
-		passwordHash: { type: String },
+		passwordHash: { type: String, required: true },
 		avatarUrl: String,
 		googleId: String,
 	},
@@ -185,34 +185,71 @@ app.use(express.json());
 
 app.post("/auth/register", async (req, res) => {
 	try {
-		const { name, email, password, avatarUrl, code } = req.body;
+		const { name, email, password, avatarUrl, code, googleToken } = req.body;
 
-		if (!name || !email || !password || !code) {
-			return res.status(400).json({ error: "Name, email, password and code are required" });
+		if (!name || !email || !password) {
+			return res.status(400).json({ error: "Nickname, email and password are required" });
 		}
 
-		const existingUser = await User.findOne({ email });
-		if (existingUser) {
+		const existingNick = await User.findOne({ name });
+		if (existingNick) {
+			return res.status(409).json({ error: "Nickname already taken" });
+		}
+
+		const existingEmail = await User.findOne({ email });
+		if (existingEmail) {
 			return res.status(409).json({ error: "User with this email already exists" });
 		}
 
-		const record = await TempCode.findOne({ email });
-		if (!record) {
-			return res
-				.status(400)
-				.json({ error: "Verification code expired or not found. Please try again." });
-		}
+		let googleId = null;
+		let finalAvatarUrl = avatarUrl;
 
-		if (record.code !== code.trim()) {
-			return res.status(400).json({ error: "Invalid verification code" });
+		if (googleToken) {
+			const ticket = await client.verifyIdToken({
+				idToken: googleToken,
+				audience: process.env.GOOGLE_CLIENT_ID,
+			});
+			const payload = ticket.getPayload();
+
+			if (payload.email !== email) {
+				return res
+					.status(400)
+					.json({ error: "Google email does not match provided email" });
+			}
+
+			googleId = payload.sub;
+			if (!finalAvatarUrl) finalAvatarUrl = payload.picture;
+		} else {
+			if (!code) {
+				return res.status(400).json({ error: "Verification code is required" });
+			}
+
+			const record = await TempCode.findOne({ email });
+			if (!record) {
+				return res
+					.status(400)
+					.json({ error: "Verification code expired or not found. Please try again." });
+			}
+
+			if (record.code !== code.trim()) {
+				return res.status(400).json({ error: "Invalid verification code" });
+			}
+
+			await TempCode.deleteOne({ email });
 		}
 
 		const salt = await bcrypt.genSalt(10);
 		const passwordHash = await bcrypt.hash(password, salt);
-		const user = new User({ name, email, passwordHash, avatarUrl });
-		await user.save();
 
-		await TempCode.deleteOne({ email });
+		const user = new User({
+			name,
+			email,
+			passwordHash,
+			avatarUrl: finalAvatarUrl,
+			googleId,
+		});
+
+		await user.save();
 
 		const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 		const { passwordHash: _, ...userData } = user.toObject();
@@ -225,12 +262,15 @@ app.post("/auth/register", async (req, res) => {
 
 app.post("/auth/login", async (req, res) => {
 	try {
-		const { email, password } = req.body;
-		const user = await User.findOne({ email });
+		const { login, password } = req.body;
+
+		const user = await User.findOne({ name: login });
+
 		if (!user) return res.status(404).json({ error: "User not found" });
-		if (!user.passwordHash) return res.status(400).json({ error: "Please login with Google" });
+
 		const isValidPass = await bcrypt.compare(password, user.passwordHash);
 		if (!isValidPass) return res.status(400).json({ error: "Invalid password" });
+
 		const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 		const { passwordHash: _, ...userData } = user.toObject();
 		res.json({ ok: true, user: userData, token });
@@ -247,23 +287,40 @@ app.post("/auth/google", async (req, res) => {
 			idToken: token,
 			audience: process.env.GOOGLE_CLIENT_ID,
 		});
-		const { name, email, picture, sub } = ticket.getPayload();
+		const { email } = ticket.getPayload();
+
 		let user = await User.findOne({ email });
+
 		if (!user) {
-			user = new User({ name, email, avatarUrl: picture, googleId: sub });
-			await user.save();
-		} else {
-			if (!user.googleId) {
-				user.googleId = sub;
-				if (!user.avatarUrl) user.avatarUrl = picture;
-				await user.save();
-			}
+			return res.status(404).json({ error: "User not found" });
 		}
+
+		if (!user.googleId) {
+			user.googleId = ticket.getPayload().sub;
+			await user.save();
+		}
+
 		const appToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 		res.json({ ok: true, user: user.toObject(), token: appToken });
 	} catch (error) {
 		console.error("Google Auth Error:", error);
 		res.status(500).json({ error: "Google login failed" });
+	}
+});
+
+app.post("/auth/google-extract", async (req, res) => {
+	try {
+		const { token } = req.body;
+		const ticket = await client.verifyIdToken({
+			idToken: token,
+			audience: process.env.GOOGLE_CLIENT_ID,
+		});
+		const { name, email, picture, sub } = ticket.getPayload();
+
+		res.json({ ok: true, email, name, picture, googleId: sub });
+	} catch (error) {
+		console.error("Google Extract Error:", error);
+		res.status(500).json({ error: "Invalid Google Token" });
 	}
 });
 
