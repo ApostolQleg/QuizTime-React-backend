@@ -104,7 +104,7 @@ const quizSchema = new mongoose.Schema(
 		id: String,
 		questions: Array,
 		authorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-		isSystem: { type: Boolean, default: false },
+		authorName: String,
 	},
 	{ versionKey: false },
 );
@@ -159,11 +159,7 @@ async function checkAndSeedDatabase() {
 	try {
 		const count = await Quiz.countDocuments();
 		if (count === 0) {
-			const quizzesWithSystemFlag = defaultQuizzes.quizzes.map((q) => ({
-				...q,
-				isSystem: true,
-			}));
-			await Quiz.insertMany(quizzesWithSystemFlag);
+			await Quiz.insertMany(defaultQuizzes.quizzes);
 			console.log("✅ Default quizzes seeded");
 		}
 	} catch (error) {
@@ -377,33 +373,23 @@ app.get("/api/quizzes", async (req, res) => {
 			skip = (page - 1) * limit;
 		}
 
-		const quizzes = await Quiz.aggregate([
-			{ $sort: { _id: -1 } },
-			{ $skip: skip },
-			{ $limit: limit },
-			{
-				$lookup: {
-					from: "users",
-					localField: "authorId",
-					foreignField: "_id",
-					as: "authorDetails",
-				},
-			},
-			{ $unwind: { path: "$authorDetails", preserveNullAndEmptyArrays: true } },
-			{
-				$project: {
-					_id: 1,
-					id: 1,
-					title: 1,
-					description: 1,
-					questionsCount: { $size: "$questions" },
-					isSystem: 1,
-					authorId: 1,
-					authorName: "$authorDetails.name",
-				},
-			},
-		]);
-		res.json(quizzes);
+		const quizzes = await Quiz.find()
+			.sort({ _id: -1 })
+			.skip(skip)
+			.limit(limit)
+			.select("id title description questions authorId authorName");
+
+		const mappedQuizzes = quizzes.map((q) => ({
+			_id: q._id,
+			id: q.id,
+			title: q.title,
+			description: q.description,
+			authorId: q.authorId,
+			authorName: q.authorName,
+			questionsCount: q.questions.length,
+		}));
+
+		res.json(mappedQuizzes);
 	} catch (error) {
 		console.error("Error fetching quizzes:", error);
 		res.status(500).json({ error: "Failed to fetch quizzes" });
@@ -418,12 +404,17 @@ app.post("/api/quizzes", checkAuth, async (req, res) => {
 		}
 		const exists = await Quiz.findOne({ id });
 		if (exists) return res.status(409).json({ error: "Quiz with this id already exists" });
+
+		const user = await User.findById(req.userId);
+		if (!user) return res.status(404).json({ error: "Author not found" });
+
 		const quiz = new Quiz({
 			id: String(id),
 			title,
 			description,
 			questions,
 			authorId: req.userId,
+			authorName: user.name,
 		});
 		await quiz.save();
 		res.status(201).json({ ok: true, quiz });
@@ -448,10 +439,13 @@ app.put("/api/quizzes/:id", checkAuth, async (req, res) => {
 	try {
 		const quiz = await Quiz.findOne({ id: req.params.id });
 		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
-		if (quiz.isSystem) return res.status(403).json({ error: "Cannot edit system quizzes" });
+
+		if (!quiz.authorId) return res.status(403).json({ error: "Cannot edit system quizzes" });
+
 		if (String(quiz.authorId) !== String(req.userId)) {
 			return res.status(403).json({ error: "You are not the author" });
 		}
+
 		const updates = {};
 		const { title, description, questions } = req.body;
 		if (title !== undefined) updates.title = title;
@@ -477,7 +471,9 @@ app.delete("/api/quizzes/:id", checkAuth, async (req, res) => {
 	try {
 		const quiz = await Quiz.findOne({ id: req.params.id });
 		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
-		if (quiz.isSystem) return res.status(403).json({ error: "Cannot delete system quizzes" });
+
+		if (!quiz.authorId) return res.status(403).json({ error: "Cannot delete system quizzes" });
+
 		if (String(quiz.authorId) !== String(req.userId)) {
 			return res.status(403).json({ error: "You are not the author" });
 		}
