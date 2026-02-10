@@ -1,4 +1,3 @@
-// Test quizzes
 export const defaultQuizzes = {
 	quizzes: [
 		// --- ТЕСТ 1: Англійська мова (A1) ---
