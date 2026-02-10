@@ -15,6 +15,7 @@ export async function checkAndSeedDatabase() {
 	}
 }
 
+// Quiz getting logic with pagination
 export const getAllQuizzes = async (req, res) => {
 	try {
 		await checkAndSeedDatabase();
@@ -50,6 +51,7 @@ export const getAllQuizzes = async (req, res) => {
 	}
 };
 
+// Quiz creation logic
 export const createQuiz = async (req, res) => {
 	try {
 		const { id, title, description, questions } = req.body;
@@ -78,6 +80,7 @@ export const createQuiz = async (req, res) => {
 	}
 };
 
+// Quiz fetching logic
 export const getQuizById = async (req, res) => {
 	try {
 		const quiz = await Quiz.findOne({ id: req.params.id });
@@ -89,6 +92,7 @@ export const getQuizById = async (req, res) => {
 	}
 };
 
+// Quiz update logic
 export const updateQuiz = async (req, res) => {
 	try {
 		const quiz = await Quiz.findOne({ id: req.params.id });
@@ -121,6 +125,7 @@ export const updateQuiz = async (req, res) => {
 	}
 };
 
+// Quiz deletion logic
 export const deleteQuiz = async (req, res) => {
 	try {
 		const quiz = await Quiz.findOne({ id: req.params.id });

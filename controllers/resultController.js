@@ -1,6 +1,7 @@
 import Result from "../models/Result.js";
 import Quiz from "../models/Quiz.js";
 
+// User results getting logic
 export const getUserResults = async (req, res) => {
 	try {
 		if (!req.userId) {
@@ -18,6 +19,7 @@ export const getUserResults = async (req, res) => {
 	}
 };
 
+// Result saving logic
 export const saveResult = async (req, res) => {
 	try {
 		const { quizId, answers, summary, timestamp } = req.body;
@@ -45,6 +47,7 @@ export const saveResult = async (req, res) => {
 	}
 };
 
+// Result fetching logic
 export const getResultById = async (req, res) => {
 	try {
 		const result = await Result.findById(req.params.id).lean();

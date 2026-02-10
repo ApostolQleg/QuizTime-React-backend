@@ -5,6 +5,7 @@ import TempCode from "../models/TempCode.js";
 import { verifyGoogleToken } from "../utils/googleClient.js";
 import { sendVerificationEmail } from "../utils/emailService.js";
 
+// Registration logic
 export const register = async (req, res) => {
 	try {
 		const { name, email, password, avatarUrl, code, googleToken } = req.body;
@@ -78,6 +79,7 @@ export const register = async (req, res) => {
 	}
 };
 
+// Login logic
 export const login = async (req, res) => {
 	try {
 		const { login, password } = req.body;
@@ -98,6 +100,7 @@ export const login = async (req, res) => {
 	}
 };
 
+// Google authentication logic
 export const googleAuth = async (req, res) => {
 	try {
 		const { token } = req.body;
@@ -124,6 +127,7 @@ export const googleAuth = async (req, res) => {
 	}
 };
 
+// Google token extraction logic (for registration)
 export const googleExtract = async (req, res) => {
 	try {
 		const { token } = req.body;
@@ -138,6 +142,7 @@ export const googleExtract = async (req, res) => {
 	}
 };
 
+// Send verification code logic
 export const sendCode = async (req, res) => {
 	try {
 		const { email } = req.body;

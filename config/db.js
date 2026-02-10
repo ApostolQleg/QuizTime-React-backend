@@ -9,6 +9,7 @@ if (!cached) {
 	cached = global.mongoose = { conn: null, promise: null };
 }
 
+// Database connection logic with caching (optimized)
 export async function connectToDatabase() {
 	if (cached.conn) {
 		return cached.conn;
