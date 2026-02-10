@@ -8,10 +8,16 @@ export const getUserResults = async (req, res) => {
 			return res.status(400).json({ error: "User ID missing" });
 		}
 
+		const limit = parseInt(req.query.limit) || 36;
+		const skip = parseInt(req.query.skip) || 0;
+
 		const results = await Result.find({ userId: req.userId })
 			.select("-questions")
 			.sort({ createdAt: -1 })
+			.skip(skip)
+			.limit(limit)
 			.lean();
+
 		res.json(results);
 	} catch (error) {
 		console.error("Error fetching results:", error);
