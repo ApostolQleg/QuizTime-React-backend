@@ -6,7 +6,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
-import { defaultQuizzes } from "./default-quizzes.js";
+import { defaultQuizzes } from "./data/defaultQuizzes.js";
 
 dotenv.config();
 
