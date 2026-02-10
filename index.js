@@ -7,6 +7,10 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { defaultQuizzes } from "./data/defaultQuizzes.js";
+import User from "./models/User.js";
+import Quiz from "./models/Quiz.js";
+import Result from "./models/Result.js";
+import TempCode from "./models/TempCode.js";
 
 dotenv.config();
 
@@ -81,69 +85,6 @@ const checkAuth = (req, res, next) => {
 		return res.status(403).json({ error: "No access" });
 	}
 };
-
-// user schema
-const userSchema = new mongoose.Schema(
-	{
-		name: { type: String, required: true, unique: true },
-		email: { type: String, required: true, unique: true },
-		passwordHash: { type: String, required: true },
-		avatarUrl: String,
-		googleId: String,
-	},
-	{ versionKey: false },
-);
-
-const User = mongoose.model("User", userSchema, "users");
-
-// quiz schema
-const quizSchema = new mongoose.Schema(
-	{
-		title: String,
-		description: String,
-		id: String,
-		questions: Array,
-		authorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-		authorName: String,
-	},
-	{ versionKey: false },
-);
-
-const Quiz = mongoose.model("Quiz", quizSchema, "quizzes");
-
-// result schema
-const resultSchema = new mongoose.Schema(
-	{
-		quizId: { type: String, required: true, index: true },
-		quizTitle: { type: String, required: true },
-		timestamp: { type: Number, required: true },
-		summary: {
-			score: Number,
-			correct: Number,
-			total: Number,
-		},
-		answers: { type: Array, required: true },
-		questions: { type: Array, required: true },
-
-		userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true, required: true },
-		createdAt: { type: Date, default: Date.now, index: true },
-	},
-	{ versionKey: false },
-);
-
-const Result = mongoose.model("Result", resultSchema, "results");
-
-// temp code schema for password reset
-const tempCodeSchema = new mongoose.Schema(
-	{
-		email: { type: String, required: true, unique: true },
-		code: { type: String, required: true },
-		createdAt: { type: Date, default: Date.now, expires: 300 },
-	},
-	{ versionKey: false },
-);
-
-const TempCode = mongoose.model("TempCode", tempCodeSchema, "temp_codes");
 
 // Nodemailer transporter setup
 const transporter = nodemailer.createTransport({
