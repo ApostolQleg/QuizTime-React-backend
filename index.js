@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { connectToDatabase } from "./config/db.js";
 
 import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 import quizRoutes from "./routes/quizRoutes.js";
 import resultRoutes from "./routes/resultRoutes.js";
 
@@ -38,6 +39,7 @@ app.use(async (req, res, next) => {
 app.use("/auth", authRoutes);
 app.use("/api/quizzes", quizRoutes);
 app.use("/api/results", resultRoutes);
+app.use("/api/user", userRoutes);
 
 // Export for Vercel
 export default app;

@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import { defaultQuizzes } from "../data/defaultQuizzes.js";
 
 // seed database logic
-export async function checkAndSeedDatabase() {
+export const checkAndSeedDatabase = async () => {
 	try {
 		const count = await Quiz.countDocuments();
 		if (count === 0) {
@@ -13,7 +13,7 @@ export async function checkAndSeedDatabase() {
 	} catch (error) {
 		console.error("Seeding error:", error);
 	}
-}
+};
 
 // Quiz getting logic with pagination
 export const getAllQuizzes = async (req, res) => {
