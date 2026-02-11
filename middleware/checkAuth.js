@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
 // Authentication checking middleware
-export const checkAuth = (req, res, next) => {
+export const checkAuth = async (req, res, next) => {
 	const token = (req.headers.authorization || "").replace(/Bearer\s?/, "");
 
 	if (token) {
@@ -11,6 +12,12 @@ export const checkAuth = (req, res, next) => {
 			if (!decoded._id) {
 				console.error("Token missing _id:", decoded);
 				return res.status(403).json({ error: "Invalid token structure" });
+			}
+
+			const user = await User.findById(decoded._id);
+
+			if (!user) {
+				return res.status(401).json({ error: "User deleted or disabled" });
 			}
 
 			req.userId = decoded._id;

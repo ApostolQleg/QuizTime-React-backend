@@ -169,3 +169,24 @@ export const sendCode = async (req, res) => {
 		res.status(500).json({ error: "Failed to send verification code" });
 	}
 };
+
+// Get current user logic
+export const getMe = async (req, res) => {
+	try {
+		const user = await User.findById(req.userId);
+		if (!user) {
+			return res.status(404).json({ error: "User not found" });
+		}
+		res.json({
+			ok: true,
+			user: {
+				_id: user._id,
+				name: user.name,
+				email: user.email,
+				avatarUrl: user.avatarUrl,
+			},
+		});
+	} catch (error) {
+		res.status(500).json({ error: "Auth check failed" });
+	}
+};
