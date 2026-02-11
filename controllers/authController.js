@@ -106,7 +106,7 @@ export const googleAuth = async (req, res) => {
 		const { token } = req.body;
 
 		const payload = await verifyGoogleToken(token);
-		const email = payload.email;
+		const { email, sub, picture } = payload;
 
 		let user = await User.findOne({ email });
 
@@ -114,8 +114,20 @@ export const googleAuth = async (req, res) => {
 			return res.status(404).json({ error: "User not found" });
 		}
 
+		let hasChanges = false;
+
 		if (!user.googleId) {
-			user.googleId = payload.sub;
+			user.googleId = sub;
+			hasChanges = true;
+		}
+
+		if (!user.avatarUrl && picture) {
+			user.avatarUrl = picture;
+			user.avatarType = "google";
+			hasChanges = true;
+		}
+
+		if (hasChanges) {
 			await user.save();
 		}
 
