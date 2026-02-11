@@ -72,9 +72,12 @@ export const updateProfile = async (req, res) => {
 		if (avatarType) user.avatarType = avatarType;
 
 		await user.save();
+
+		const { passwordHash, ...userData } = user.toObject();
+
 		res.json({
 			ok: true,
-			user: { name: user.name, themeColor: user.themeColor, avatarType: user.avatarType },
+			user: userData,
 		});
 	} catch (error) {
 		console.error("Profile update error:", error);
@@ -86,7 +89,7 @@ export const updateProfile = async (req, res) => {
 export const deleteAccount = async (req, res) => {
 	try {
 		const deletedUser = await User.findByIdAndDelete(req.userId);
-	
+
 		if (!deletedUser) {
 			return res.status(404).json({ error: "User not found" });
 		}
