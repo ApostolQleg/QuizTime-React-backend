@@ -11,8 +11,9 @@ const router = express.Router();
 
 router.get("/", checkAuth, getUser);
 
-router.put("/password", checkAuth, changePassword);
 router.put("/update", checkAuth, updateProfile);
+
+router.post("/password", checkAuth, changePassword);
 
 router.delete("/delete", checkAuth, deleteAccount);
 
