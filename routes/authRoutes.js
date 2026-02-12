@@ -1,4 +1,3 @@
-import express from "express";
 import {
 	register,
 	login,
@@ -7,12 +6,10 @@ import {
 	sendCode,
 } from "../controllers/authController.js";
 
-const router = express.Router();
-
-router.post("/register", register);
-router.post("/login", login);
-router.post("/google", googleAuth);
-router.post("/google-extract", googleExtract);
-router.post("/send-code", sendCode);
-
-export default router;
+export default async function authRoutes(fastify) {
+	fastify.post("/register", register);
+	fastify.post("/login", login);
+	fastify.post("/google", googleAuth);
+	fastify.post("/google-extract", googleExtract);
+	fastify.post("/send-code", sendCode);
+}

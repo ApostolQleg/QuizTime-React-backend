@@ -1,4 +1,3 @@
-import express from "express";
 import {
 	getAllQuizzes,
 	createQuiz,
@@ -8,15 +7,17 @@ import {
 } from "../controllers/quizController.js";
 import { checkAuth } from "../middleware/checkAuth.js";
 
-const router = express.Router();
+export default async function quizRoutes(fastify) {
+	// public routes
+	fastify.get("/", getAllQuizzes);
+	fastify.get("/:id", getQuizById);
 
-router.get("/", getAllQuizzes);
-router.get("/:id", getQuizById);
+	// protected routes
+	fastify.register(async function (protectedRoutes) {
+		protectedRoutes.addHook("preHandler", checkAuth);
 
-router.post("/", checkAuth, createQuiz);
-
-router.put("/:id", checkAuth, updateQuiz);
-
-router.delete("/:id", checkAuth, deleteQuiz);
-
-export default router;
+		protectedRoutes.post("/", createQuiz);
+		protectedRoutes.put("/:id", updateQuiz);
+		protectedRoutes.delete("/:id", deleteQuiz);
+	});
+}
