@@ -1,5 +1,5 @@
-import express from "express";
-import cors from "cors";
+import Fastify from "fastify";
+import cors from "@fastify/cors";
 import dotenv from "dotenv";
 import { connectToDatabase } from "./config/db.js";
 
@@ -10,41 +10,44 @@ import resultRoutes from "./routes/resultRoutes.js";
 
 dotenv.config();
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// CORS setup
-app.use(
-	cors({
-		origin: ["https://quiz-time-with-react.vercel.app", "http://localhost:5173"],
-		methods: ["GET", "POST", "PUT", "DELETE"],
-		allowedHeaders: ["Content-Type", "Authorization"],
-	}),
-);
-
-app.use(express.json());
-
-// Global Middleware for DB Connection
-app.use(async (req, res, next) => {
-	try {
-		await connectToDatabase();
-		next();
-	} catch (error) {
-		console.error("Database connection failed:", error);
-		res.status(500).json({ error: "Database connection failed" });
-	}
+// Fastify initialization
+const app = Fastify({
+	logger: true,
 });
 
-// Routes
-app.use("/auth", authRoutes);
-app.use("/api/quizzes", quizRoutes);
-app.use("/api/results", resultRoutes);
-app.use("/api/user", userRoutes);
+// CORS registration
+await app.register(cors, {
+	origin: ["https://quiz-time-with-react.vercel.app", "http://localhost:5173"],
+	methods: ["GET", "POST", "PUT", "DELETE"],
+	allowedHeaders: ["Content-Type", "Authorization"],
+});
 
-// Export for Vercel
-export default app;
+// Database connection
+connectToDatabase().catch((err) => {
+	console.error("Database connection failed:", err);
+	process.exit(1);
+});
 
-// Start server if not in production (local dev)
+// Route registration
+app.register(authRoutes, { prefix: "/auth" });
+app.register(quizRoutes, { prefix: "/api/quizzes" });
+app.register(resultRoutes, { prefix: "/api/results" });
+app.register(userRoutes, { prefix: "/api/user" });
+
+// Serverless function for Vercel
+export default async function handler(req, res) {
+	await app.ready();
+	app.server.emit("request", req, res);
+}
+
+// Local development server
 if (process.env.NODE_ENV !== "production") {
-	app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+	const PORT = process.env.PORT || 3000;
+	try {
+		await app.listen({ port: PORT });
+		console.log(`Server running on port ${PORT}`);
+	} catch (err) {
+		app.log.error(err);
+		process.exit(1);
+	}
 }
