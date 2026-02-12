@@ -3,15 +3,15 @@ import User from "../models/User.js";
 import Result from "../models/Result.js";
 
 // Get current user logic
-export const getUser = async (req, res) => {
+export const getUser = async (request, reply) => {
 	try {
-		const user = await User.findById(req.userId);
+		const user = await User.findById(request.userId);
 
 		if (!user) {
-			return res.status(404).json({ error: "User not found" });
+			return reply.code(404).send({ error: "User not found" });
 		}
 
-		res.json({
+		return reply.send({
 			ok: true,
 			user: {
 				_id: user._id,
@@ -21,26 +21,26 @@ export const getUser = async (req, res) => {
 			},
 		});
 	} catch (error) {
-		res.status(500).json({ error: "Auth check failed" });
+		return reply.code(500).send({ error: "Auth check failed" });
 	}
 };
 
 // Change password logic
-export const changePassword = async (req, res) => {
+export const changePassword = async (request, reply) => {
 	try {
-		const { currentPassword, newPassword } = req.body;
+		const { currentPassword, newPassword } = request.body;
 		if (!currentPassword || !newPassword) {
-			return res.status(400).json({ error: "Current and new passwords are required" });
+			return reply.code(400).send({ error: "Current and new passwords are required" });
 		}
 
-		const user = await User.findById(req.userId);
+		const user = await User.findById(request.userId);
 		if (!user) {
-			return res.status(404).json({ error: "User not found" });
+			return reply.code(404).send({ error: "User not found" });
 		}
 
 		const isMatch = await user.comparePassword(currentPassword);
 		if (!isMatch) {
-			return res.status(400).json({ error: "Current password is incorrect" });
+			return reply.code(400).send({ error: "Current password is incorrect" });
 		}
 
 		const salt = await bcrypt.genSalt(10);
@@ -49,22 +49,22 @@ export const changePassword = async (req, res) => {
 
 		await user.save();
 
-		res.json({ ok: true, message: "Password changed successfully" });
+		return reply.send({ ok: true, message: "Password changed successfully" });
 	} catch (error) {
 		console.error("Change password error:", error);
-		res.status(500).json({ error: "Failed to change password" });
+		return reply.code(500).send({ error: "Failed to change password" });
 	}
 };
 
 // Profile update logic
-export const updateProfile = async (req, res) => {
+export const updateProfile = async (request, reply) => {
 	try {
-		const { name, themeColor, avatarType } = req.body;
+		const { name, themeColor, avatarType } = request.body;
 
-		const user = await User.findById(req.userId);
+		const user = await User.findById(request.userId);
 
 		if (!user) {
-			return res.status(404).json({ error: "User not found" });
+			return reply.code(404).send({ error: "User not found" });
 		}
 
 		if (name) user.name = name;
@@ -75,30 +75,30 @@ export const updateProfile = async (req, res) => {
 
 		const { passwordHash, ...userData } = user.toObject();
 
-		res.json({
+		return reply.send({
 			ok: true,
 			user: userData,
 		});
 	} catch (error) {
 		console.error("Profile update error:", error);
-		res.status(500).json({ error: "Failed to update profile" });
+		return reply.code(500).send({ error: "Failed to update profile" });
 	}
 };
 
 // Delete account logic
-export const deleteAccount = async (req, res) => {
+export const deleteAccount = async (request, reply) => {
 	try {
-		const deletedUser = await User.findByIdAndDelete(req.userId);
+		const deletedUser = await User.findByIdAndDelete(request.userId);
 
 		if (!deletedUser) {
-			return res.status(404).json({ error: "User not found" });
+			return reply.code(404).send({ error: "User not found" });
 		}
 
-		await Result.deleteMany({ userId: req.userId });
+		await Result.deleteMany({ userId: request.userId });
 
-		res.json({ ok: true, message: "Account deleted successfully" });
+		return reply.send({ ok: true, message: "Account deleted successfully" });
 	} catch (error) {
 		console.error("Delete account error:", error);
-		res.status(500).json({ error: "Failed to delete account" });
+		return reply.code(500).send({ error: "Failed to delete account" });
 	}
 };

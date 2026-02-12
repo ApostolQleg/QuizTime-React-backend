@@ -16,15 +16,15 @@ export const checkAndSeedDatabase = async () => {
 };
 
 // Quiz getting logic with pagination
-export const getAllQuizzes = async (req, res) => {
+export const getAllQuizzes = async (request, reply) => {
 	try {
 		await checkAndSeedDatabase();
 
-		const limit = parseInt(req.query.limit) || 36;
-		let skip = parseInt(req.query.skip);
+		const limit = parseInt(request.query.limit);
+		let skip = parseInt(request.query.skip);
 
 		if (isNaN(skip)) {
-			const page = parseInt(req.query.page) || 1;
+			const page = parseInt(request.query.page) || 1;
 			skip = (page - 1) * limit;
 		}
 
@@ -44,102 +44,102 @@ export const getAllQuizzes = async (req, res) => {
 			questionsCount: q.questions.length,
 		}));
 
-		res.json(mappedQuizzes);
+		reply.send(mappedQuizzes);
 	} catch (error) {
 		console.error("Error fetching quizzes:", error);
-		res.status(500).json({ error: "Failed to fetch quizzes" });
+		reply.code(500).send({ error: "Failed to fetch quizzes" });
 	}
 };
 
 // Quiz creation logic
-export const createQuiz = async (req, res) => {
+export const createQuiz = async (request, reply) => {
 	try {
-		const { id, title, description, questions } = req.body;
+		const { id, title, description, questions } = request.body;
 		if (!id || !title || !Array.isArray(questions)) {
-			return res.status(400).json({ error: "Invalid payload" });
+			return reply.code(400).send({ error: "Invalid payload" });
 		}
 		const exists = await Quiz.findOne({ id });
-		if (exists) return res.status(409).json({ error: "Quiz with this id already exists" });
+		if (exists) return reply.code(409).send({ error: "Quiz with this id already exists" });
 
-		const user = await User.findById(req.userId);
-		if (!user) return res.status(404).json({ error: "Author not found" });
+		const user = await User.findById(request.userId);
+		if (!user) return reply.code(404).send({ error: "Author not found" });
 
 		const quiz = new Quiz({
 			id: String(id),
 			title,
 			description,
 			questions,
-			authorId: req.userId,
+			authorId: request.userId,
 			authorName: user.name,
 		});
 		await quiz.save();
-		res.status(201).json({ ok: true, quiz });
+		reply.code(201).send({ ok: true, quiz });
 	} catch (error) {
 		console.error("Create quiz error:", error);
-		res.status(500).json({ error: "Failed to create quiz" });
+		reply.code(500).send({ error: "Failed to create quiz" });
 	}
 };
 
 // Quiz fetching logic
-export const getQuizById = async (req, res) => {
+export const getQuizById = async (request, reply) => {
 	try {
-		const quiz = await Quiz.findOne({ id: req.params.id });
-		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
-		res.json(quiz);
+		const quiz = await Quiz.findOne({ id: request.params.id });
+		if (!quiz) return reply.code(404).send({ error: "Quiz not found" });
+		reply.send(quiz);
 	} catch (error) {
 		console.error("Fetch quiz error:", error);
-		res.status(500).json({ error: "Failed to fetch quiz" });
+		reply.code(500).send({ error: "Failed to fetch quiz" });
 	}
 };
 
 // Quiz update logic
-export const updateQuiz = async (req, res) => {
+export const updateQuiz = async (request, reply) => {
 	try {
-		const quiz = await Quiz.findOne({ id: req.params.id });
-		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+		const quiz = await Quiz.findOne({ id: request.params.id });
+		if (!quiz) return reply.code(404).send({ error: "Quiz not found" });
 
-		if (!quiz.authorId) return res.status(403).json({ error: "Cannot edit system quizzes" });
+		if (!quiz.authorId) return reply.code(403).send({ error: "Cannot edit system quizzes" });
 
-		if (String(quiz.authorId) !== String(req.userId)) {
-			return res.status(403).json({ error: "You are not the author" });
+		if (String(quiz.authorId) !== String(request.userId)) {
+			return reply.code(403).send({ error: "You are not the author" });
 		}
 
 		const updates = {};
-		const { title, description, questions } = req.body;
+		const { title, description, questions } = request.body;
 		if (title !== undefined) updates.title = title;
 		if (description !== undefined) updates.description = description;
 		if (questions !== undefined) {
 			if (!Array.isArray(questions))
-				return res.status(400).json({ error: "Questions must be an array" });
+				return reply.code(400).send({ error: "Questions must be an array" });
 			updates.questions = questions;
 		}
 		const updatedQuiz = await Quiz.findOneAndUpdate(
-			{ id: req.params.id },
+			{ id: request.params.id },
 			{ $set: updates },
 			{ new: true },
 		);
-		res.json({ ok: true, quiz: updatedQuiz });
+		reply.send({ ok: true, quiz: updatedQuiz });
 	} catch (error) {
 		console.error("Update quiz error:", error);
-		res.status(500).json({ error: "Failed to update quiz" });
+		reply.code(500).send({ error: "Failed to update quiz" });
 	}
 };
 
 // Quiz deletion logic
-export const deleteQuiz = async (req, res) => {
+export const deleteQuiz = async (request, reply) => {
 	try {
-		const quiz = await Quiz.findOne({ id: req.params.id });
-		if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+		const quiz = await Quiz.findOne({ id: request.params.id });
+		if (!quiz) return reply.code(404).send({ error: "Quiz not found" });
 
-		if (!quiz.authorId) return res.status(403).json({ error: "Cannot delete system quizzes" });
+		if (!quiz.authorId) return reply.code(403).send({ error: "Cannot delete system quizzes" });
 
-		if (String(quiz.authorId) !== String(req.userId)) {
-			return res.status(403).json({ error: "You are not the author" });
+		if (String(quiz.authorId) !== String(request.userId)) {
+			return reply.code(403).send({ error: "You are not the author" });
 		}
-		await Quiz.findOneAndDelete({ id: req.params.id });
-		res.json({ ok: true });
+		await Quiz.findOneAndDelete({ id: request.params.id });
+		reply.send({ ok: true });
 	} catch (error) {
 		console.error("Delete quiz error:", error);
-		res.status(500).json({ error: "Failed to delete quiz" });
+		reply.code(500).send({ error: "Failed to delete quiz" });
 	}
 };

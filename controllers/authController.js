@@ -6,22 +6,22 @@ import { verifyGoogleToken } from "../utils/googleClient.js";
 import { sendVerificationEmail } from "../utils/emailService.js";
 
 // Registration logic
-export const register = async (req, res) => {
+export const register = async (request, reply) => {
 	try {
-		const { name, email, password, avatarUrl, code, googleToken } = req.body;
+		const { name, email, password, avatarUrl, code, googleToken } = request.body;
 
 		if (!name || !email || !password) {
-			return res.status(400).json({ error: "Nickname, email and password are required" });
+			return reply.code(400).send({ error: "Nickname, email and password are required" });
 		}
 
 		const existingNick = await User.findOne({ name });
 		if (existingNick) {
-			return res.status(409).json({ error: "Nickname already taken" });
+			return reply.code(409).send({ error: "Nickname already taken" });
 		}
 
 		const existingEmail = await User.findOne({ email });
 		if (existingEmail) {
-			return res.status(409).json({ error: "User with this email already exists" });
+			return reply.code(409).send({ error: "User with this email already exists" });
 		}
 
 		let googleId = null;
@@ -31,27 +31,27 @@ export const register = async (req, res) => {
 			const payload = await verifyGoogleToken(googleToken);
 
 			if (payload.email !== email) {
-				return res
-					.status(400)
-					.json({ error: "Google email does not match provided email" });
+				return reply
+					.code(400)
+					.send({ error: "Google email does not match provided email" });
 			}
 
 			googleId = payload.sub;
 			if (!finalAvatarUrl) finalAvatarUrl = payload.picture;
 		} else {
 			if (!code) {
-				return res.status(400).json({ error: "Verification code is required" });
+				return reply.code(400).send({ error: "Verification code is required" });
 			}
 
 			const record = await TempCode.findOne({ email });
 			if (!record) {
-				return res
-					.status(400)
-					.json({ error: "Verification code expired or not found. Please try again." });
+				return reply
+					.code(400)
+					.send({ error: "Verification code expired or not found. Please try again." });
 			}
 
 			if (record.code !== code.trim()) {
-				return res.status(400).json({ error: "Invalid verification code" });
+				return reply.code(400).send({ error: "Invalid verification code" });
 			}
 
 			await TempCode.deleteOne({ email });
@@ -72,38 +72,38 @@ export const register = async (req, res) => {
 
 		const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 		const { passwordHash: _, ...userData } = user.toObject();
-		res.status(201).json({ ok: true, user: userData, token });
+		reply.code(201).send({ ok: true, user: userData, token });
 	} catch (error) {
 		console.error("Register error:", error);
-		res.status(500).json({ error: "Registration failed" });
+		reply.code(500).send({ error: "Registration failed" });
 	}
 };
 
 // Login logic
-export const login = async (req, res) => {
+export const login = async (request, reply) => {
 	try {
-		const { login, password } = req.body;
+		const { login, password } = request.body;
 
 		const user = await User.findOne({ name: login });
 
-		if (!user) return res.status(404).json({ error: "User not found" });
+		if (!user) return reply.code(404).send({ error: "User not found" });
 
 		const isValidPass = await bcrypt.compare(password, user.passwordHash);
-		if (!isValidPass) return res.status(400).json({ error: "Invalid password" });
+		if (!isValidPass) return reply.code(400).send({ error: "Invalid password" });
 
 		const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 		const { passwordHash: _, ...userData } = user.toObject();
-		res.json({ ok: true, user: userData, token });
+		reply.send({ ok: true, user: userData, token });
 	} catch (error) {
 		console.error("Login error:", error);
-		res.status(500).json({ error: "Login failed" });
+		reply.code(500).send({ error: "Login failed" });
 	}
 };
 
 // Google authentication logic
-export const googleAuth = async (req, res) => {
+export const googleAuth = async (request, reply) => {
 	try {
-		const { token } = req.body;
+		const { token } = request.body;
 
 		const payload = await verifyGoogleToken(token);
 		const { email, sub, picture } = payload;
@@ -111,7 +111,7 @@ export const googleAuth = async (req, res) => {
 		let user = await User.findOne({ email });
 
 		if (!user) {
-			return res.status(404).json({ error: "User not found" });
+			return reply.code(404).send({ error: "User not found" });
 		}
 
 		let hasChanges = false;
@@ -132,37 +132,37 @@ export const googleAuth = async (req, res) => {
 		}
 
 		const appToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
-		res.json({ ok: true, user: user.toObject(), token: appToken });
+		reply.send({ ok: true, user: user.toObject(), token: appToken });
 	} catch (error) {
 		console.error("Google Auth Error:", error);
-		res.status(500).json({ error: "Google login failed" });
+		reply.code(500).send({ error: "Google login failed" });
 	}
 };
 
 // Google token extraction logic (for registration)
-export const googleExtract = async (req, res) => {
+export const googleExtract = async (request, reply) => {
 	try {
-		const { token } = req.body;
+		const { token } = request.body;
 
 		const payload = await verifyGoogleToken(token);
 		const { name, email, picture, sub } = payload;
 
-		res.json({ ok: true, email, name, picture, googleId: sub });
+		reply.send({ ok: true, email, name, picture, googleId: sub });
 	} catch (error) {
 		console.error("Google Extract Error:", error);
-		res.status(500).json({ error: "Invalid Google Token" });
+		reply.code(500).send({ error: "Invalid Google Token" });
 	}
 };
 
 // Send verification code logic
-export const sendCode = async (req, res) => {
+export const sendCode = async (request, reply) => {
 	try {
-		const { email } = req.body;
-		if (!email) return res.status(400).json({ error: "Email is required" });
+		const { email } = request.body;
+		if (!email) return reply.code(400).send({ error: "Email is required" });
 
 		const existingUser = await User.findOne({ email });
 		if (existingUser) {
-			return res.status(409).json({ error: "User with this email already exists" });
+			return reply.code(409).send({ error: "User with this email already exists" });
 		}
 
 		const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -175,9 +175,9 @@ export const sendCode = async (req, res) => {
 
 		await sendVerificationEmail(email, code);
 
-		res.json({ ok: true, message: "Code sent" });
+		reply.send({ ok: true, message: "Code sent" });
 	} catch (error) {
 		console.error("Send code error:", error);
-		res.status(500).json({ error: "Failed to send verification code" });
+		reply.code(500).send({ error: "Failed to send verification code" });
 	}
 };
