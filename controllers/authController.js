@@ -149,9 +149,7 @@ export const googleExtract = async (request, reply) => {
 
 		const existingUser = await User.findOne({ email });
 		if (existingUser) {
-			return reply.code(409).send({
-				error: "User with this email already exists. Please log in.",
-			});
+			return reply.code(409).send({ error: "User with this email already exists" });
 		}
 
 		reply.send({ ok: true, email, name, picture, googleId: sub });
