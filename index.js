@@ -13,13 +13,27 @@ dotenv.config();
 // Fastify initialization
 const app = Fastify({
 	logger: true,
+	trustProxy: true,
+	connectionTimeout: 20000,
 });
 
 // CORS registration
 await app.register(cors, {
 	origin: ["https://quiz-time-with-react.vercel.app", "http://localhost:5173"],
-	methods: ["GET", "POST", "PUT", "DELETE"],
+	methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 	allowedHeaders: ["Content-Type", "Authorization"],
+	credentials: true,
+});
+
+// Database connection via plugin
+app.register(async (instance) => {
+	try {
+		await connectToDatabase();
+		instance.log.info("MongoDB connection established via Plugin");
+	} catch (err) {
+		instance.log.error("Database connection failed", err);
+		throw err;
+	}
 });
 
 // Database connection
@@ -33,6 +47,11 @@ app.register(authRoutes, { prefix: "/auth" });
 app.register(quizRoutes, { prefix: "/api/quizzes" });
 app.register(resultRoutes, { prefix: "/api/results" });
 app.register(userRoutes, { prefix: "/api/user" });
+
+// Health check route
+app.get("/", async (request, reply) => {
+	return { status: "Server is running (Fastify)", time: new Date() };
+});
 
 // Serverless function for Vercel
 export default async function handler(req, res) {
