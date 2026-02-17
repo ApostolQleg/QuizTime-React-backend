@@ -18,6 +18,8 @@ export const getUser = async (request, reply) => {
 				name: user.name,
 				email: user.email,
 				avatarUrl: user.avatarUrl,
+				themeColor: user.themeColor,
+				avatarType: user.avatarType,
 			},
 		});
 	} catch (error) {
