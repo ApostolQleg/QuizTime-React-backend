@@ -150,7 +150,7 @@ export const googleExtract = async (request, reply) => {
 		console.log("Searching for user with email:", email);
 		const existingUser = await User.findOne({ email });
 		console.log("Found user:", existingUser);
-		
+
 		if (existingUser) {
 			return reply.code(409).send({ error: "User with this email already exists" });
 		}
@@ -187,5 +187,42 @@ export const sendCode = async (request, reply) => {
 	} catch (error) {
 		console.error("Send code error:", error);
 		reply.code(500).send({ error: "Failed to send verification code" });
+	}
+};
+
+// Link Google account logic
+export const linkGoogle = async (request, reply) => {
+	try {
+		const userId = request.userId;
+
+		const { token } = request.body;
+
+		const payload = await verifyGoogleToken(token);
+		const { sub, picture } = payload;
+
+		const existingGoogleUser = await User.findOne({ googleId: sub });
+		if (existingGoogleUser && String(existingGoogleUser._id) !== String(userId)) {
+			return reply
+				.code(409)
+				.send({ error: "This Google account is already linked to another user" });
+		}
+
+		const user = await User.findById(userId);
+		if (!user) return reply.code(404).send({ error: "User not found" });
+
+		user.googleId = sub;
+
+		if (!user.avatarUrl) {
+			user.avatarUrl = picture;
+			user.avatarType = "google";
+		}
+
+		await user.save();
+
+		const { passwordHash, ...userData } = user.toObject();
+		reply.send({ ok: true, user: userData });
+	} catch (error) {
+		console.error("Link Google Error:", error);
+		reply.code(500).send({ error: "Failed to link Google account" });
 	}
 };
