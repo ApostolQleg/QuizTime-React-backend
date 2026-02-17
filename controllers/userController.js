@@ -20,6 +20,7 @@ export const getUser = async (request, reply) => {
 				avatarUrl: user.avatarUrl,
 				themeColor: user.themeColor,
 				avatarType: user.avatarType,
+				googleId: user.googleId,
 			},
 		});
 	} catch (error) {
