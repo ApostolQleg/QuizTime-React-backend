@@ -6,7 +6,10 @@ const quizSchema = new mongoose.Schema(
 		description: String,
 		id: String,
 		questions: Array,
-		authorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+		authorId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "User",
+		},
 		authorName: String,
 	},
 	{ versionKey: false },

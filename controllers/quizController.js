@@ -32,17 +32,26 @@ export const getAllQuizzes = async (request, reply) => {
 			.sort({ _id: -1 })
 			.skip(skip)
 			.limit(limit)
-			.select("id title description questions authorId authorName");
+			.select("id title description questions authorId")
+			.populate("authorId", "name avatarUrl avatarType themeColor");
 
-		const mappedQuizzes = quizzes.map((q) => ({
-			_id: q._id,
-			id: q.id,
-			title: q.title,
-			description: q.description,
-			authorId: q.authorId,
-			authorName: q.authorName,
-			questionsCount: q.questions.length,
-		}));
+		const mappedQuizzes = quizzes.map((q) => {
+			const author = q.authorId || {};
+
+			return {
+				_id: q._id,
+				id: q.id,
+				title: q.title,
+				description: q.description,
+				questionsCount: q.questions.length,
+
+				authorId: author._id || null,
+				authorName: author.name,
+				authorAvatarUrl: author.avatarUrl,
+				authorAvatarType: author.avatarType,
+				authorThemeColor: author.themeColor,
+			};
+		});
 
 		reply.send(mappedQuizzes);
 	} catch (error) {
@@ -83,9 +92,25 @@ export const createQuiz = async (request, reply) => {
 // Quiz fetching logic
 export const getQuizById = async (request, reply) => {
 	try {
-		const quiz = await Quiz.findOne({ id: request.params.id });
+		const quiz = await Quiz.findOne({ id: request.params.id }).populate(
+			"authorId",
+			"name avatarUrl avatarType themeColor",
+		);
+
 		if (!quiz) return reply.code(404).send({ error: "Quiz not found" });
-		reply.send(quiz);
+
+		const author = quiz.authorId || {};
+
+		const responseQuiz = {
+			...quiz.toObject(),
+			authorId: author._id || null,
+			authorName: author.name,
+			authorAvatarUrl: author.avatarUrl,
+			authorAvatarType: author.avatarType,
+			authorThemeColor: author.themeColor,
+		};
+
+		reply.send(responseQuiz);
 	} catch (error) {
 		console.error("Fetch quiz error:", error);
 		reply.code(500).send({ error: "Failed to fetch quiz" });
