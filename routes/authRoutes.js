@@ -14,5 +14,5 @@ export default async function authRoutes(fastify) {
 	fastify.post("/google", googleAuth);
 	fastify.post("/google-extract", googleExtract);
 	fastify.post("/send-code", sendCode);
-	fastify.post("/link-google", checkAuth, linkGoogle);
+	fastify.post("/link-google", { preHandler: checkAuth }, linkGoogle);
 }
